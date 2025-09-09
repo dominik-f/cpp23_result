@@ -1,5 +1,6 @@
 #pragma once
 
+#include <type_traits>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -21,6 +22,9 @@ public:
 template<typename T, typename E = std::string>
 class result
 {
+	struct ok_type : std::true_type {};
+	struct err_type : std::false_type {};
+
 	enum class state
 	{
 		Ok, Error
@@ -29,10 +33,11 @@ class result
 	std::optional<T> ok_;
 	std::optional<E> err_;
 
-	constexpr result(const E& error) : state_{ state::Error }, err_{ error } {}
+	constexpr result(ok_type, const T& value) : state_{ state::Ok }, ok_{ value } {}
+	constexpr result(err_type, const E& error) : state_{ state::Error }, err_{ error } {}
 
 public:
-	constexpr result(const T& value) : state_{ state::Ok }, ok_{ value } {}
+	constexpr result(const T& value) : result(ok_type{}, value) {}
 
 	~result() = default;
 
@@ -63,7 +68,7 @@ public:
 
 	static result<T, E> with_error(const E& error)
 	{
-		return result<T, E>(error);
+		return result<T, E>(err_type{}, error);
 	}
 
 	constexpr bool is_ok() const { return state_ == state::Ok; }
