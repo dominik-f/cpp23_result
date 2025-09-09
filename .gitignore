@@ -1,3 +1,5 @@
 .vs
 out
 *.user
+build
+CMakeUserPresets.json
