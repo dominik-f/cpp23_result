@@ -30,7 +30,7 @@ public:
 	bool is_ok() { return status_ == Status::Ok; }
 	bool is_err() { return status_ == Status::Error; }
 
-	auto expect(const char* msg) && ->T  requires !std::is_void_v<T> {
+	auto expect(const char* msg) && ->T  requires (!std::is_void_v<T>) {
 		if (is_ok())
 		{
 			return std::move(value());

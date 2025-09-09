@@ -3,3 +3,4 @@ out
 *.user
 build
 CMakeUserPresets.json
+.vscode
