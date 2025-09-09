@@ -4,31 +4,70 @@
 #include <string>
 #include <type_traits>
 
+namespace df
+{
+	
+class bad_result_access : public std::exception
+{
+public:
+	bad_result_access() = default;
+	virtual ~bad_result_access() = default;
+
+	const char* what() const noexcept override
+	{ return "bad result access"; }
+};
+
+
 template<typename T, typename E = std::string>
 class result
 {
-	enum class Status
+	enum class state
 	{
 		Ok, Error
 	};
-	const Status status_;
+	const state state_;
 	std::optional<T> ok_;
 	std::optional<E> err_;
 
-	result(const E& error) : status_{ Status::Error }, err_{ error } {}
+	constexpr result(const E& error) : state_{ state::Error }, err_{ error } {}
 
 public:
-	result(const T& value) : status_{ Status::Ok }, ok_{ value } {}
+	constexpr result(const T& value) : state_{ state::Ok }, ok_{ value } {}
 
 	~result() = default;
+
+	/*
+	 operator bool
+	 has_value
+	 value
+	 value_or
+	  and_then
+	  or_else
+	  transform
+	  is_ok()
+	  is_err()
+
+	  static with_ok
+	  static with_err
+
+	  throw when moved
+
+	  inplace init
+
+	  T, E: contructor tests, when types can be
+	  - default initialized (or not)
+	  - move/copy constructed (or not)
+
+	  delete bool operator if T is bool to stop confusion
+	*/
 
 	static result<T, E> with_error(const E& error)
 	{
 		return result<T, E>(error);
 	}
 
-	bool is_ok() { return status_ == Status::Ok; }
-	bool is_err() { return status_ == Status::Error; }
+	constexpr bool is_ok() const { return state_ == state::Ok; }
+	constexpr bool is_err() const { return state_ == state::Error; }
 
 	auto expect(const char* msg) && ->T  requires (!std::is_void_v<T>) {
 		if (is_ok())
@@ -61,7 +100,14 @@ public:
 	//	else throw std::runtime_error("invalid error access");
 	//}
 
-	// One version of value which works for everything
+	template <class Self>
+	constexpr auto&& value(this Self&& self) {
+		if (self.is_ok()) {
+			return std::forward<Self>(self).ok_.value();
+		}
+		throw std::runtime_error("invalid ok access");
+	}
+
 	template <class Self>
 	constexpr auto&& error(this Self&& self) {
 		if (self.is_err()) {
@@ -69,7 +115,7 @@ public:
 		}
 		throw std::runtime_error("invalid error access");
 	}
-
+/*
 	// version of value for non-const lvalues
 	constexpr T& value()& {
 		if (is_ok()) {
@@ -100,8 +146,11 @@ public:
 			return std::move(*ok_);
 		}
 		throw std::runtime_error("invalid ok access");
-	}
+	}*/
+
 
 private:
 
 };
+
+}

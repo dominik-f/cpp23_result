@@ -21,3 +21,4 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 
 USER vscode
 RUN pipx install conan
+COPY --chown=vscode:vscode conan_profile /home/vscode/.conan2/profiles/default
