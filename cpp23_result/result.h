@@ -152,7 +152,34 @@ public:
 		}
 		throw std::runtime_error("invalid ok access");
 	}*/
+/*
 
+- transform
+
+
+
+/// TransformError &
+  template <class Func>
+  constexpr auto TransformError(Func&& func)
+
+
+
+  // do not make explicit
+  constexpr Result(const Ok<T>& ok) {
+  constexpr Result(const Err<E>& err) {
+
+// throw if error
+constexpr inline void Expect(const std::string& str) const
+
+
+
+and_then
+
+or_else
+
+
+
+*/
 
 private:
 
