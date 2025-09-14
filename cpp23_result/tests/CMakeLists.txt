@@ -1,7 +1,7 @@
 ﻿cmake_minimum_required(VERSION 3.25)
 project(cpp23_result_tests CXX)
 
-find_package(gtest CONFIG REQUIRED)
+find_package(GTest CONFIG REQUIRED)
 
 add_executable(${PROJECT_NAME}
 	"tests.cpp"
@@ -17,3 +17,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 	GTest::gmock_main
 	cpp23_result::cpp23_result
 )
+
+include(GoogleTest)
+gtest_discover_tests(${PROJECT_NAME})
