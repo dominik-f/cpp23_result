@@ -18,6 +18,14 @@ public:
 	{ return "bad result access"; }
 };
 
+//todo noexcept where possible
+//todo inline where possible
+//todo constexpr where possible
+//todo concepts where possible
+//todo add tests for T and E types, e.g. void, bool, non-copyable, non-moveable, non-default-constructible
+//todo struct Ok
+//todo struct Err
+
 
 template<typename T, typename E = std::string>
 class result
@@ -33,8 +41,14 @@ class result
 	std::optional<T> ok_;
 	std::optional<E> err_;
 
-	constexpr result(ok_type, const T& value) : state_{ state::Ok }, ok_{ value } {}
-	constexpr result(err_type, const E& error) : state_{ state::Error }, err_{ error } {}
+	constexpr explicit result(ok_type, const T& value) : state_{ state::Ok }, ok_{ value } {}
+	constexpr explicit result(err_type, const E& error) : state_{ state::Error }, err_{ error } {}
+
+	// https://www.heise.de/blog/C-Core-Guidelines-Der-noexcept-Spezifier-und-Operator-4121657.html
+	// Mithilfe der Type-Traits-Bibliothek lässt sich zur Compilezeit prüfen,
+	// ob ein Datentyp T einen Konstruktor besitzt, der keine Ausnahme werfen kann:
+	// std::is_nothrow_copy_constructible::value.
+	// Daher kann auch statt des noexcept-Operators das Prädikat aus der Type-Traits-Bibliothek verwendet werden:
 
 public:
 	constexpr result(const T& value) : result(ok_type{}, value) {}
@@ -49,8 +63,6 @@ public:
 	  and_then
 	  or_else
 	  transform
-	  is_ok()
-	  is_err()
 
 	  static with_ok
 	  static with_err
@@ -71,8 +83,21 @@ public:
 		return result<T, E>(err_type{}, error);
 	}
 
-	constexpr bool is_ok() const { return state_ == state::Ok; }
-	constexpr bool is_err() const { return state_ == state::Error; }
+	[[nodiscard]] constexpr inline bool is_ok() const { return state_ == state::Ok; }
+	[[nodiscard]] constexpr inline bool is_err() const { return state_ == state::Error; }
+
+	// explicit to avoid implicit conversion to bool
+	// e.g. result<string, strint> r; int i = r; 
+	// 
+	// disabled if(result) confusion when T is bool
+	// e.g. result<bool> res = ...; if(res) ...
+	// use res.is_ok() or res.is_err() instead
+	// todo delete if T is bool to avoid confusion
+  	template <typename U = T, typename = std::enable_if<!std::is_same_v<U, bool>>>
+	constexpr explicit operator bool() const noexcept {
+		return is_ok();
+	}
+
 
 	auto expect(const char* msg) && ->T  requires (!std::is_void_v<T>) {
 		if (is_ok())
@@ -96,14 +121,6 @@ public:
 		}
 	}
 
-	//T value() {
-	//	if (is_ok()) return *ok_;
-	//	else throw std::runtime_error("invalid ok access");
-	//}
-	//E error() {
-	//	if (is_err()) return *err_;
-	//	else throw std::runtime_error("invalid error access");
-	//}
 
 	template <class Self>
 	constexpr auto&& value(this Self&& self) {
@@ -120,38 +137,7 @@ public:
 		}
 		throw std::runtime_error("invalid error access");
 	}
-/*
-	// version of value for non-const lvalues
-	constexpr T& value()& {
-		if (is_ok()) {
-			return *ok_;
-		}
-		throw std::runtime_error("invalid ok access");
-	}
 
-	// version of value for const lvalues
-	constexpr T const& value() const& {
-		if (is_ok()) {
-			return *ok_;
-		}
-		throw std::runtime_error("invalid ok access");
-	}
-
-	// version of value for non-const rvalues... are you bored yet?
-	constexpr T&& value()&& {
-		if (is_ok()) {
-			return std::move(*ok_);
-		}
-		throw std::runtime_error("invalid ok access");
-	}
-
-	// you sure are by this point
-	constexpr T const&& value() const&& {
-		if (is_ok()) {
-			return std::move(*ok_);
-		}
-		throw std::runtime_error("invalid ok access");
-	}*/
 /*
 
 - transform
