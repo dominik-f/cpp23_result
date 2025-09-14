@@ -56,10 +56,16 @@ public:
 	~result() = default;
 
 	/*
+	ok_t, err_t
+	explicit result constructors for ok_t, err_t (usable for returns)
+
 	 operator bool
 	 has_value
 	 value
 	 value_or
+	 error
+	 error_or
+
 	  and_then
 	  or_else
 	  transform
@@ -76,6 +82,14 @@ public:
 	  - move/copy constructed (or not)
 
 	  delete bool operator if T is bool to stop confusion
+
+
+	  https://en.cppreference.com/w/cpp/utility/expected.html
+	emplace - constructs the expected value in-place
+	swap - exchanges the contents
+
+	// operator==
+
 	*/
 
 	static result<T, E> with_error(const E& error)

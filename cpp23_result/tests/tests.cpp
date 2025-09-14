@@ -4,6 +4,7 @@
 #include <print>
 #include "cpp23_result.h"
 #include "result.h"
+#include <expected>
 
 
 class result_test : public ::testing::Test
@@ -11,7 +12,10 @@ class result_test : public ::testing::Test
 private:
     /* data */
 public:
-    result_test(/* args */) {}
+    result_test(/* args */) {
+		std::expected<int, std::string> e1 = 10;
+		std::expected<int, std::string> e2 = std::unexpected("error");
+	}
     ~result_test() {}
 };
 
