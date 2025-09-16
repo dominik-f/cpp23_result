@@ -3,8 +3,7 @@ project(cpp23_result CXX)
 
 # Add source to this project's executable.
 add_library(${PROJECT_NAME} SHARED
-	"cpp23_result.cpp"
-	"cpp23_result.h"
+	"result.cpp"
 	"result.h"
 )
 add_library("cpp23_result::cpp23_result" ALIAS ${PROJECT_NAME})
