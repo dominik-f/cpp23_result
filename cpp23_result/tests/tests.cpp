@@ -108,3 +108,13 @@ TEST_F(result_test, VoidVariants) {
   auto e3 = df::result<void, int>::with_error(20);
   auto e4 = df::result<void, void>::with_error();
 }
+
+df::result<int, int> print_int(const int i) { std::cout << i << "\n"; return i; }
+
+TEST_F(result_test, and_then) {
+  df::result<int, int> r1 = 10;
+  auto e1 = df::result<int, int>::with_error(20);
+
+  r1.and_then(print_int);
+  e1.and_then(print_int);
+}

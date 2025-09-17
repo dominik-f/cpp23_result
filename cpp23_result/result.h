@@ -226,6 +226,26 @@ public:
 		throw std::runtime_error("invalid error access");
 	}
 
+	template<typename Func>
+	constexpr auto and_then(Func&& func)
+	{
+		if (is_ok())
+		{
+			if constexpr (std::is_void_v<T>)
+			{
+				return std::invoke(func);
+			}
+			else
+			{
+				return std::invoke(func, value());
+			}
+		}
+		else
+		{
+			return *this;
+		}
+	}
+
 /*
 
 - transform
