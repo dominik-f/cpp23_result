@@ -24,6 +24,7 @@ public:
 	{ return "bad result access"; }
 };
 
+//todo implement storage as union with std::construct_at/std:destroy_at
 namespace detail
 {
 	template<typename T, typename E>
@@ -60,13 +61,13 @@ namespace detail
 
 
 
-template<class T>
+template<typename T>
 concept IsVoid = std::is_void_v<T>;
-template<class T>
+template<typename T>
 concept NotVoid = !std::is_void_v<T>;
-template<class T>
+template<typename T>
 concept IsBool = std::is_same_v<T, bool>;
-template<class T>
+template<typename T>
 concept NotBool = !std::is_same_v<T, bool>;
 
 
@@ -211,7 +212,7 @@ public:
 	}
 
 
-	template <class Self>
+	template <typename Self>
 	constexpr auto&& value(this Self&& self) requires(!std::is_void_v<T>) {
 		if (self.is_ok()) {
 			return std::get<0>(std::forward<Self>(self).storage_.value);
@@ -219,13 +220,15 @@ public:
 		throw std::runtime_error("invalid ok access");
 	}
 
-	template <class Self>
+	template <typename Self>
 	constexpr auto&& error(this Self&& self) requires(!std::is_void_v<E>) {
 		if (self.is_err()) {
 			return std::get<1>(std::forward<Self>(self).storage_.value);
 		}
 		throw std::runtime_error("invalid error access");
 	}
+
+	// todo check for is_contructible
 
 	/// @brief If this.is_ok() returns the invocation result of the callable func. Otherwise returns the current error of this.
 	/// The callable func has to return a result.
@@ -304,7 +307,7 @@ public:
 	/// Returns a new result object.
 	/// @param func callable - can return any type
 	/// @return Returns an result<TRet, E> where TRet is the return type of func.
-	template <class Func> requires std::invocable<Func, T>
+	template <typename Func> requires std::invocable<Func, T>
 	constexpr auto transform_value(Func&& func)
 	{
 		using TRet = std::remove_cv_t<std::invoke_result_t<Func, decltype((value())) >>;
@@ -335,7 +338,7 @@ public:
 		}
 	}
 
-	template <class Func> requires std::invocable<Func, E>
+	template <typename Func> requires std::invocable<Func, E>
 	constexpr auto transform_error(Func&& func)
 	{
 		using EOut = std::remove_cv_t<std::invoke_result_t<Func, decltype((error())) >>;
@@ -367,16 +370,6 @@ public:
 	}
 
 /*
-
-- transform
-
-
-
-/// TransformError &
-  template <class Func>
-  constexpr auto TransformError(Func&& func)
-
-
 
   // do not make explicit
   constexpr Result(const Ok<T>& ok) {
