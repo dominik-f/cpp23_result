@@ -109,26 +109,38 @@ TEST_F(result_test, VoidVariants) {
   auto e4 = df::result<void, void>::with_error();
 }
 
-df::result<int, std::string> print_int(const int i) { std::cout << i << "\n"; return i; }
-df::result<int, std::string> log_error(const std::string& err) { std::cout << err << "\n"; return df::result<int, std::string>::with_error(err); }
+auto print_nothing() { std::cout << "\n"; return df::result<void, std::string>(); }
+auto print_int(const int i) { std::cout << i << "\n"; return df::result<int, std::string>(i); }
+auto print_int_v(const int i) { std::cout << i << "\n"; return df::result<int, void>(i); }
+template<typename T, typename E>
+auto log_error(const E& err) { std::cout << err << "\n"; return df::result<T, E>::with_error(err); }
+template<typename T>
+auto log_error_void() { std::cout << "error\n"; return df::result<T, void>::with_error(); }
 int add_ten(int v) { return v + 10; }
 
 TEST_F(result_test, and_then_or_else) {
-  df::result<int, std::string> r1 = 10;
-  const df::result<int, std::string> cr2 = 20;
-  auto e1 = df::result<int, std::string>::with_error("e30");
-  const auto ce2 = df::result<int, std::string>::with_error("e40");
+  df::result<int, std::string> r1_ = 10;
+  const df::result<int, std::string> r2_c = 20;
+  df::result<void, std::string> r3_v;
+  
+  auto r4_e = df::result<int, std::string>::with_error("e30");
+  const auto r5_ce = df::result<int, std::string>::with_error("e40");
+  auto r6_ve = df::result<int, void>::with_error();
 
   // todo better tests
-  r1.and_then(print_int);
-  cr2.and_then(print_int);
-  r1.or_else(log_error);
-  cr2.or_else(log_error);
+  r1_.and_then(print_int);
+  r2_c.and_then(print_int);
+  r3_v.and_then(print_nothing);
+  r4_e.and_then(print_int);
+  r5_ce.and_then(print_int);
+  r6_ve.and_then(print_int_v);
 
-  e1.and_then(print_int);
-  ce2.and_then(print_int);
-  e1.or_else(log_error);
-  ce2.or_else(log_error);
+  r1_.or_else(log_error<int, std::string>);
+  r2_c.or_else(log_error<int, std::string>);
+  r3_v.or_else(log_error<void, std::string>);
+  r4_e.or_else(log_error<int, std::string>);
+  r5_ce.or_else(log_error<int, std::string>);
+  r6_ve.or_else(log_error_void<int>);
 }
 
 TEST_F(result_test, transform) {

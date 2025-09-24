@@ -235,22 +235,44 @@ public:
 	/// But the callable can change the type:  result<T,E> -> result<U,E>
 	/// @param func callable - must return a result
 	/// @return An object of result<U, E>
-	template<typename Func> requires std::is_invocable_v<Func, T>
-	constexpr auto and_then(Func&& func) const
+	template<typename Self, typename Func> requires (!std::is_void_v<T>) && std::is_invocable_v<Func, T>
+	constexpr auto and_then(this Self&& self, Func&& func)
 	{
-		using TResultOut = std::remove_cv_t<std::invoke_result_t<Func, decltype((value())) >>;
+		using xx = decltype((std::declval<decltype(std::forward<Self>(self))>().value()));
+		using TResultOut2 = std::remove_cv_t<std::invoke_result_t<Func, xx>>;
+
+		//using yy = std::invoke_result_t<decltype (&result<T,E>::value<Self>)>;
+
+		//using zz = std::invoke_result_t<decltype (&(std::forward<Self>(self)::value))>;
+
+		//std::invoke_result_t<F, decltype(v)>;
+		//using xT = decltype(std::declval<result<T,E>>().template value<Self>());
+
+		//using asdf = decltype(std::declval<std::forward<Self>(self)>().value());
+
+		using ret0 = decltype((self.value()));
+		using TResultOut = std::remove_cv_t<std::invoke_result_t<Func, ret0>>;
+
+		//using ret1 = decltype((std::forward<Self>(self).value));
+		//using ret2 = std::declval<decltype (std::forward<Self>(self))>().value();
+		//using ret3 = decltype((std::forward<Self>(self).value));
+		//using _TResultOut = std::remove_cv_t<std::invoke_result_t<Func, ret1>>;
     	//todo: static_assert(__is_std_expected<_Up>::value, "The result of f(value()) must be a specialization of result");
 		static_assert(std::is_same_v<typename TResultOut::error_type, E>, "The result of func(value()) must have the same error_type as this result");
 
-		if (is_ok())
-		{
+		if (std::forward<Self>(self).is_ok())
+		{/*
 			if constexpr (std::is_void_v<T>)
 			{
 				return std::invoke(func);
 			}
-			else
-			{
-				return std::invoke(func, value());
+			else*/
+			{/*
+				decltype(auto) val = std::forward<Self>(self).value();
+				auto retval = std::invoke(func, val);
+				using ret_t = decltype(retval);*/
+
+				return std::invoke(std::forward<Func>(func), std::forward<Self>(self).value());
 			}
 		}
 		else
@@ -261,7 +283,31 @@ public:
 			}
 			else
 			{
-				return TResultOut(err_tag{}, error());
+				return TResultOut(err_tag{}, std::forward<Self>(self).error());
+			}
+		}
+	}
+	
+	template<typename Self, typename Func> requires std::is_void_v<T> && std::is_invocable_v<Func>
+	constexpr auto and_then(this Self&& self, Func&& func)
+	{
+		using TResultOut = std::remove_cv_t<std::invoke_result_t<Func>>;
+
+		static_assert(std::is_same_v<typename TResultOut::error_type, E>, "The result of func(value()) must have the same error_type as this result");
+
+		if (std::forward<Self>(self).is_ok())
+		{
+			return std::invoke(std::forward<Func>(func));
+		}
+		else
+		{
+			if constexpr (std::is_void_v<E>)
+			{
+				return TResultOut(err_tag{});
+			}
+			else
+			{
+				return TResultOut(err_tag{}, std::forward<Self>(self).error());
 			}
 		}
 	}
@@ -271,7 +317,7 @@ public:
 	/// But the callable can change the type: result<T,E> -> result<T,R>
 	/// @param func callable - must return a result
 	/// @return An object of result<T, R>
-	template<typename Func> requires std::invocable<Func, E>
+	template<typename Func> requires (!std::is_void_v<E>) && std::invocable<Func, E>
 	constexpr auto or_else(Func&& func) const
 	{
 		using TResultOut = std::remove_cv_t<std::invoke_result_t<Func, decltype((error())) >>;
@@ -280,14 +326,30 @@ public:
 
 		if (is_err())
 		{
-			if constexpr (std::is_void_v<E>)
+			return std::invoke(std::forward<Func>(func), error());
+		}
+		else
+		{
+			if constexpr (std::is_void_v<T>)
 			{
-				return std::invoke(std::forward<Func>(func));
+				return TResultOut(ok_tag{});
 			}
 			else
 			{
-				return std::invoke(std::forward<Func>(func), error());
+				return TResultOut(ok_tag{}, value());
 			}
+		}
+	}
+	template<typename Func> requires std::is_void_v<E> && std::invocable<Func>
+	constexpr auto or_else(Func&& func) const
+	{
+		using TResultOut = std::remove_cv_t<std::invoke_result_t<Func>>;
+    	//todo: static_assert(__is_std_expected<_Up>::error, "The result of f(error()) must be a specialization of result");
+		static_assert(std::is_same_v<typename TResultOut::value_type, T>, "The result of func(error()) must have the same value_type as this result");
+
+		if (is_err())
+		{
+			return std::invoke(std::forward<Func>(func));
 		}
 		else
 		{
@@ -307,7 +369,7 @@ public:
 	/// Returns a new result object.
 	/// @param func callable - can return any type
 	/// @return Returns an result<TRet, E> where TRet is the return type of func.
-	template <typename Func> requires std::invocable<Func, T>
+	template <typename Func> requires (!std::is_void_v<T>) && std::invocable<Func, T>
 	constexpr auto transform_value(Func&& func)
 	{
 		using TRet = std::remove_cv_t<std::invoke_result_t<Func, decltype((value())) >>;
