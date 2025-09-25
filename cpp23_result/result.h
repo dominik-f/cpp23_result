@@ -11,6 +11,8 @@
 #include <exception>
 #include <stdexcept>
 
+#include <iostream>
+
 namespace df
 {
 	
@@ -70,6 +72,127 @@ concept IsBool = std::is_same_v<T, bool>;
 template<typename T>
 concept NotBool = !std::is_same_v<T, bool>;
 
+template<typename T>
+struct C
+{
+	using type = T;
+};
+template<typename T>
+using C_t = C<T>::type;
+
+
+template<typename Func, typename T>
+concept invocable = ((!std::is_void_v<T>) && std::invocable<Func, T>) || std::invocable<Func>;
+
+
+
+template<typename R>
+[[nodiscard]] constexpr decltype(auto) forward_value_like(R&& r) noexcept
+{
+	if constexpr (!std::is_void_v<typename R::value_type>)
+	{
+		return std::forward_like<decltype(r)>(r.value());
+	}
+	else
+	{
+	}
+};
+template<typename R>
+using forward_value_like_t = decltype(forward_value_like<R>);
+
+template<typename R>
+[[nodiscard]] constexpr decltype(auto) forward_error_like(R&& r) noexcept
+{
+	if constexpr (!std::is_void_v<typename R::error_type>)
+	{
+		return std::forward_like<decltype(r)>(r.error());
+	}
+	else
+	{
+	}
+};
+template<typename R>
+using forward_error_like_t = decltype(forward_error_like<R>);
+
+
+template<typename Func, typename T>
+struct my_invoke_res
+{
+	using type = std::remove_cv_t<std::invoke_result_t<Func, T>>;
+};
+template<typename Func>
+struct my_invoke_res<Func, void>
+{
+	using type = std::remove_cv_t<std::invoke_result_t<Func>>;
+};
+
+template<typename Self, typename Func, typename T>
+struct yyyyy
+{
+	using fw_type = decltype(std::forward_like<Self>(std::declval<T>()));
+	using TResultOut = my_invoke_res<Func, fw_type>::type;
+};
+template<typename Self, typename Func>
+struct yyyyy<Self, Func, void>
+{
+	using fw_type = void;
+	using TResultOut = std::remove_cv_t<std::invoke_result_t<Func>>;
+};
+
+
+
+
+template<typename Func, typename... ArgTypes>
+struct TResultOut_t {
+	using type = std::remove_cv_t<std::invoke_result_t<Func, ArgTypes...>>;
+};
+template<typename Func>
+struct TResultOut_t<Func, void> {
+	using type = std::remove_cv_t<std::invoke_result_t<Func>>;
+};
+/*
+template<typename T, typename Self, typename Func, typename... ArgTypes>
+struct conditional_forwarder {
+	using type = std::remove_cv_t<std::invoke_result_t<Func, ArgTypes...>>;
+
+	using xx2 = decltype(std::forward_like<decltype(self)>(self.value()));
+	
+	using TResultOut = std::remove_cv_t<std::invoke_result_t<Func, xx2>>;
+};*/
+
+
+#define PRINT_CVREF(__self)                                                    \
+  {                                                                            \
+    using SelfType = decltype(__self);                                         \
+    using UnrefSelfType = std::remove_reference_t<SelfType>;                   \
+    if constexpr (std::is_lvalue_reference_v<SelfType>) {                      \
+      if constexpr (std::is_const_v<UnrefSelfType>)                            \
+        std::cout << "const lvalue\n";                                         \
+      else                                                                     \
+        std::cout << "mutable lvalue\n";                                       \
+    } else {                                                                   \
+      if constexpr (std::is_const_v<UnrefSelfType>)                            \
+        std::cout << "const rvalue\n";                                         \
+      else                                                                     \
+        std::cout << "mutable rvalue\n";                                       \
+    }                                                                          \
+  }
+
+#define PRINT_CVREF_2(SelfType)                                                \
+  {                                                                            \
+    using UnrefSelfType = std::remove_reference_t<SelfType>;                   \
+    if constexpr (std::is_lvalue_reference_v<SelfType>) {                      \
+      if constexpr (std::is_const_v<UnrefSelfType>)                            \
+        std::cout << "const lvalue\n";                                         \
+      else                                                                     \
+        std::cout << "mutable lvalue\n";                                       \
+    } else {                                                                   \
+      if constexpr (std::is_const_v<UnrefSelfType>)                            \
+        std::cout << "const rvalue\n";                                         \
+      else                                                                     \
+        std::cout << "mutable rvalue\n";                                       \
+    }                                                                          \
+  }
 
 template<typename T, typename E>
 class result
@@ -238,8 +361,23 @@ public:
 	template<typename Self, typename Func> requires (!std::is_void_v<T>) && std::is_invocable_v<Func, T>
 	constexpr auto and_then(this Self&& self, Func&& func)
 	{
+		PRINT_CVREF(self);
+
 		using xx = decltype((std::declval<decltype(std::forward<Self>(self))>().value()));
-		using TResultOut2 = std::remove_cv_t<std::invoke_result_t<Func, xx>>;
+		using xx2 = decltype(std::forward_like<decltype(self)>(self.value()));
+		using xx3 = decltype(std::forward<Self>(self).value());
+		using xx4 = yyyyy<Self, Func, T>::fw_type;
+		static_assert (std::is_same_v<xx, xx2>);
+		static_assert (std::is_same_v<xx, xx3>);
+		static_assert (std::is_same_v<xx2, xx3>);
+		static_assert (std::is_same_v<xx, xx4>);
+		using TResultOut1 = std::remove_cv_t<std::invoke_result_t<Func, xx2>>;
+		using TResultOut2 = yyyyy<Self, Func, T>::TResultOut;
+		static_assert (std::is_same_v<TResultOut1, TResultOut2>);
+		
+		using TResultOut = TResultOut2;
+
+		PRINT_CVREF_2(xx3);
 
 		//using yy = std::invoke_result_t<decltype (&result<T,E>::value<Self>)>;
 
@@ -250,8 +388,8 @@ public:
 
 		//using asdf = decltype(std::declval<std::forward<Self>(self)>().value());
 
-		using ret0 = decltype((self.value()));
-		using TResultOut = std::remove_cv_t<std::invoke_result_t<Func, ret0>>;
+		//using ret0 = decltype((self.value()));
+		//using TResultOut = std::remove_cv_t<std::invoke_result_t<Func, ret0>>;
 
 		//using ret1 = decltype((std::forward<Self>(self).value));
 		//using ret2 = std::declval<decltype (std::forward<Self>(self))>().value();
@@ -291,7 +429,13 @@ public:
 	template<typename Self, typename Func> requires std::is_void_v<T> && std::is_invocable_v<Func>
 	constexpr auto and_then(this Self&& self, Func&& func)
 	{
-		using TResultOut = std::remove_cv_t<std::invoke_result_t<Func>>;
+		PRINT_CVREF(self);
+
+		using TResultOut1 = std::remove_cv_t<std::invoke_result_t<Func>>;
+		using TResultOut2 = yyyyy<Self, Func, T>::TResultOut;
+		static_assert (std::is_same_v<TResultOut1, TResultOut2>);
+
+		using TResultOut = TResultOut2;
 
 		static_assert(std::is_same_v<typename TResultOut::error_type, E>, "The result of func(value()) must have the same error_type as this result");
 
