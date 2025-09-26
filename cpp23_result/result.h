@@ -308,51 +308,26 @@ public:
 	/// @brief If this.is_err() returns the invocation result of the callable func. Otherwise returns the current value of this.
 	/// The callable func has to return a result.
 	/// But the callable can change the error type: result<T,E> -> result<T,R>
-	/// Overload for T != void
 	/// @param func callable - must return a result
 	/// @return An object of result<T, R> (see TResultOut)
 	template<typename Func>
-		requires (!std::is_void_v<E>) && std::invocable<Func, E>
+		requires detail::is_invocable_v<Func, E>
 	constexpr auto or_else(this auto&& self, Func&& func)
 	{
-		using ErrorType = decltype(std::forward<decltype(self)>(self).error());
-		using TResultOut = std::remove_cv_t<std::invoke_result_t<Func, ErrorType>>;
+		using TResultOut = detail::invoke_result<decltype(self), Func, E>::type;
     	static_assert(detail::is_result<TResultOut>, "The return value of func(error()) must be a result");
 		static_assert(std::is_same_v<typename TResultOut::value_type, T>, "The return value of func(error()) must have the same value_type as this object");
 
 		if (std::forward<decltype(self)>(self).is_err())
 		{
-			return std::invoke(std::forward<Func>(func), std::forward<decltype(self)>(self).error());
-		}
-		else
-		{
-			if constexpr (std::is_void_v<T>)
+			if constexpr (std::is_void_v<E>)
 			{
-				return TResultOut(detail::ok_tag{});
+				return std::invoke(std::forward<Func>(func));
 			}
 			else
 			{
-				return TResultOut(detail::ok_tag{}, std::forward<decltype(self)>(self).value());
+				return std::invoke(std::forward<Func>(func), std::forward<decltype(self)>(self).error());
 			}
-		}
-	}
-	/// @brief If this.is_err() returns the invocation result of the callable func. Otherwise returns the current value of this.
-	/// The callable func has to return a result.
-	/// But the callable can change the error type: result<T,E> -> result<T,R>
-	/// Overload for T == void
-	/// @param func callable - must return a result
-	/// @return An object of result<T, R> (see TResultOut)
-	template<typename Func>
-		requires std::is_void_v<E> && std::invocable<Func>
-	constexpr auto or_else(this auto&& self, Func&& func)
-	{
-		using TResultOut = std::remove_cv_t<std::invoke_result_t<Func>>;
-    	static_assert(detail::is_result<TResultOut>, "The return value of func() must be a result");
-		static_assert(std::is_same_v<typename TResultOut::value_type, T>, "The return value of func() must have the same value_type as this object");
-
-		if (std::forward<decltype(self)>(self).is_err())
-		{
-			return std::invoke(std::forward<Func>(func));
 		}
 		else
 		{
