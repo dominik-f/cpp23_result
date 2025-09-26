@@ -119,6 +119,21 @@ template<typename T>
 auto log_error_void() { std::cout << "error\n"; return df::result<T, void>::with_error(); }
 
 int add_ten(int v) { return v + 10; }
+int get_ten_from_nothing() { return 10; }
+auto errc_to_str(const std::errc& error_code)
+{
+  std::string value_name = "unknown error";
+  if (error_code == std::errc::invalid_argument)
+    value_name = "std::errc::invalid_argument";
+  if (error_code == std::errc::operation_not_permitted)
+    value_name = "std::errc::operation_not_permitted";
+  if (error_code == std::errc::operation_not_supported)
+    value_name = "std::errc::operation_not_supported";
+  if (error_code == std::errc::permission_denied)
+    value_name = "std::errc::permission_denied";
+
+  return value_name;
+}
 
 
 TEST_F(result_test, and_then_or_else) {
@@ -167,12 +182,45 @@ TEST_F(result_test, and_then_or_else) {
 }
 
 TEST_F(result_test, transform) {
-  df::result<int, std::string> r1 = 10;
-  const df::result<int, std::string> cr2 = 20;
-  auto e1 = df::result<int, std::string>::with_error("e30");
-  const auto ce2 = df::result<int, std::string>::with_error("e40");
+  df::result<int, std::errc> r1_i = 10;
+  df::result<const int, std::errc> r2_ci = 10;
+  df::result<void, std::errc> r3_v;
+  const df::result<int, std::errc> cr4_i = 20;
+  const df::result<const int, std::errc> cr5_ci = 20;
+  const df::result<void, std::errc> cr6_v;
+  
+  auto er1_s = df::result<int, std::errc>::with_error(std::errc::operation_not_permitted);
+  auto er2_cs = df::result<int, const std::errc>::with_error(std::errc::invalid_argument);
+  auto er3_v = df::result<int, void>::with_error();
+  const auto er4_s = df::result<int, std::errc>::with_error(std::errc::operation_not_supported);
+  const auto er5_cs = df::result<int, const std::errc>::with_error(std::errc::permission_denied);
+  const auto er6_v = df::result<int, void>::with_error();
+  
+  EXPECT_EQ(r1_i.transform_value(add_ten).value(), 20);
+  EXPECT_EQ(r2_ci.transform_value(add_ten).value(), 20);
+  EXPECT_EQ(r3_v.transform_value(get_ten_from_nothing).value(), 10);
+  EXPECT_EQ(cr4_i.transform_value(add_ten).value(), 30);
+  EXPECT_EQ(cr5_ci.transform_value(add_ten).value(), 30);
+  EXPECT_EQ(cr6_v.transform_value(get_ten_from_nothing).value(), 10);
 
-  auto x = r1.transform_value(add_ten);
-  EXPECT_EQ(x.value(), 20);
-  EXPECT_EQ(r1.value(), 10);
+  EXPECT_EQ(er1_s.transform_value(add_ten).error(), std::errc::operation_not_permitted);
+  EXPECT_EQ(er2_cs.transform_value(add_ten).error(), std::errc::invalid_argument);
+  static_assert(std::is_void_v<typename decltype(er3_v.transform_value(add_ten))::error_type>);
+  EXPECT_EQ(er4_s.transform_value(add_ten).error(), std::errc::operation_not_supported);
+  EXPECT_EQ(er5_cs.transform_value(add_ten).error(), std::errc::permission_denied);
+  static_assert(std::is_void_v<typename decltype(er6_v.transform_value(add_ten))::error_type>);
+
+  EXPECT_EQ(r1_i.transform_error(errc_to_str).value(), 10);
+  EXPECT_EQ(r2_ci.transform_error(errc_to_str).value(), 10);
+  static_assert(std::is_void_v<typename decltype(r3_v.transform_error(errc_to_str))::value_type>);
+  EXPECT_EQ(cr4_i.transform_error(errc_to_str).value(), 20);
+  EXPECT_EQ(cr5_ci.transform_error(errc_to_str).value(), 20);
+  static_assert(std::is_void_v<typename decltype(cr6_v.transform_error(errc_to_str))::value_type>);
+
+  EXPECT_EQ(er1_s.transform_error(errc_to_str).error(), "std::errc::operation_not_permitted");
+  EXPECT_EQ(er2_cs.transform_error(errc_to_str).error(), "std::errc::invalid_argument");
+  EXPECT_EQ(er3_v.transform_error([]() { return "undefined"; }).error(), "undefined");
+  EXPECT_EQ(er4_s.transform_error(errc_to_str).error(), "std::errc::operation_not_supported");
+  EXPECT_EQ(er5_cs.transform_error(errc_to_str).error(), "std::errc::permission_denied");
+  EXPECT_EQ(er6_v.transform_error([]() { return "undefined"; }).error(), "undefined");
 }

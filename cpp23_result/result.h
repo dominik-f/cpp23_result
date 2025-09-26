@@ -270,9 +270,10 @@ public:
 
 	/// @brief If this.is_ok() returns the invocation result of the callable func. Otherwise returns the current error of this.
 	/// The callable func has to return a result.
-	/// But the callable can change the value type: result<T,E> -> result<U,E>
+	/// It can change the value type: result<T,E> -> result<U,E>
+	/// but the error type E must stay the same.
 	/// @param func callable - must return a result
-	/// @return An object of result<U, E> (see TResultOut)
+	/// @return Returns an object of type result<U, E> (same as the callable)
 	template<typename Func>
 		requires detail::is_invocable_v<Func, T>
 	constexpr auto and_then(this auto&& self, Func&& func)
@@ -307,9 +308,10 @@ public:
 	
 	/// @brief If this.is_err() returns the invocation result of the callable func. Otherwise returns the current value of this.
 	/// The callable func has to return a result.
-	/// But the callable can change the error type: result<T,E> -> result<T,R>
+	/// It can change the error type: result<T,E> -> result<T,R>
+	/// but the value type T must stay the same.
 	/// @param func callable - must return a result
-	/// @return An object of result<T, R> (see TResultOut)
+	/// @return Returns an object of type result<T, R> (same as the callable)
 	template<typename Func>
 		requires detail::is_invocable_v<Func, E>
 	constexpr auto or_else(this auto&& self, Func&& func)
@@ -318,18 +320,7 @@ public:
     	static_assert(detail::is_result<TResultOut>, "The return value of func(error()) must be a result");
 		static_assert(std::is_same_v<typename TResultOut::value_type, T>, "The return value of func(error()) must have the same value_type as this object");
 
-		if (std::forward<decltype(self)>(self).is_err())
-		{
-			if constexpr (std::is_void_v<E>)
-			{
-				return std::invoke(std::forward<Func>(func));
-			}
-			else
-			{
-				return std::invoke(std::forward<Func>(func), std::forward<decltype(self)>(self).error());
-			}
-		}
-		else
+		if (std::forward<decltype(self)>(self).is_ok())
 		{
 			if constexpr (std::is_void_v<T>)
 			{
@@ -340,52 +331,79 @@ public:
 				return TResultOut(detail::ok_tag{}, std::forward<decltype(self)>(self).value());
 			}
 		}
-	}
-	
-	/// @brief If this.is_ok() returns the invocation result of the callable func. Otherwise returns the current error of this.
-	/// The callable can return any type.
-	/// Returns a new result object.
-	/// @param func callable - can return any type
-	/// @return Returns an result<TRet, E> where TRet is the return type of func.
-	template <typename Func> requires (!std::is_void_v<T>) && std::invocable<Func, T>
-	constexpr auto transform_value(Func&& func)
-	{
-		using TRet = std::remove_cv_t<std::invoke_result_t<Func, decltype((value())) >>;
-		//using TRet = std::remove_cv_t<std::invoke_result_t<Func, T&>>;
-		using TResultOut = result<TRet, E>;
-		
-		if (is_ok())
+		else
 		{
-			if constexpr (std::is_void_v<T>)
+			if constexpr (std::is_void_v<E>)
 			{
-				return result<TRet, E>(std::invoke(std::forward<Func>(func)));
+				return std::invoke(std::forward<Func>(func));
 			}
 			else
 			{
-				return result<TRet, E>(std::invoke(std::forward<Func>(func), value()));
+				return std::invoke(std::forward<Func>(func), std::forward<decltype(self)>(self).error());
+			}
+		}
+	}
+	
+	/// @brief If this.is_ok() returns the invocation result of the callable func. Otherwise returns the current error of this.
+	/// This operation returns a new result object.
+	/// But the callable can return any type.
+	/// @param func callable - can return any type
+	/// @return Returns an object of type result<TFuncRet, E> where TFuncRet is the return type of func.
+	template <typename Func>
+		requires detail::is_invocable_v<Func, T>
+	constexpr auto transform_value(this auto&& self, Func&& func)
+	{
+		using TFuncRet = detail::invoke_result<decltype(self), Func, T>::type;
+		using TResultOut = result<TFuncRet, E>;
+		
+		if (std::forward<decltype(self)>(self).is_ok())
+		{
+			if constexpr (std::is_void_v<T>)
+			{
+				return TResultOut(std::invoke(std::forward<Func>(func)));
+			}
+			else
+			{
+				return TResultOut(std::invoke(std::forward<Func>(func), std::forward<decltype(self)>(self).value()));
 			}
 		}
 		else
 		{
 			if constexpr (std::is_void_v<E>)
 			{
-				return result<TRet, E>(detail::err_tag{});
+				return TResultOut::with_error();
 			}
 			else
 			{
-				return result<TRet, E>(detail::err_tag{}, error());
+				return TResultOut::with_error(std::forward<decltype(self)>(self).error());
 			}
 		}
 	}
 
-	template <typename Func> requires std::invocable<Func, E>
-	constexpr auto transform_error(Func&& func)
+	/// @brief If this.is_err() returns the invocation result of the callable func. Otherwise returns the current value of this.
+	/// This operation returns a new result object.
+	/// But the callable can return any type.
+	/// @param func callable - can return any type
+	/// @return Returns an object of type result<T, EFuncRet> where EFuncRet is the return type of func.
+	template <typename Func>
+		requires detail::is_invocable_v<Func, E>
+	constexpr auto transform_error(this auto&& self, Func&& func)
 	{
-		using EOut = std::remove_cv_t<std::invoke_result_t<Func, decltype((error())) >>;
-		//using TRet = std::remove_cv_t<std::invoke_result_t<Func, T&>>;
-		using TResultOut = result<T, EOut>;
+		using EFuncRet = detail::invoke_result<decltype(self), Func, E>::type;
+		using TResultOut = result<T, EFuncRet>;
 		
-		if (is_err())
+		if (std::forward<decltype(self)>(self).is_ok())
+		{
+			if constexpr (std::is_void_v<T>)
+			{
+				return TResultOut();
+			}
+			else
+			{
+				return TResultOut(std::forward<decltype(self)>(self).value());
+			}
+		}
+		else
 		{
 			if constexpr (std::is_void_v<E>)
 			{
@@ -393,18 +411,7 @@ public:
 			}
 			else
 			{
-				return TResultOut::with_error(std::invoke(std::forward<Func>(func), error()));
-			}
-		}
-		else
-		{
-			if constexpr (std::is_void_v<T>)
-			{
-				return TResultOut(detail::ok_tag{});
-			}
-			else
-			{
-				return TResultOut(detail::ok_tag{}, value());
+				return TResultOut::with_error(std::invoke(std::forward<Func>(func), std::forward<decltype(self)>(self).error()));
 			}
 		}
 	}
