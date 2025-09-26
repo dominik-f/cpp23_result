@@ -11,7 +11,7 @@
 #include <exception>
 #include <stdexcept>
 
-namespace df
+namespace df // maybe use "rs" as namespace
 {
 
 /// Discriminated union that holds an expected value or an error value.
@@ -56,6 +56,10 @@ namespace detail
 } // namespace detail
 
 
+//todo is_invocable_r -> for implicit conversion
+
+//todo only ok,err assignment/copy/move shall be possible - all other constructors shall be explicit
+//todo result class: final ??
 //todo noexcept where possible
 //todo inline where possible
 //todo constexpr where possible
@@ -168,19 +172,23 @@ public:
 	constexpr result(const _T& value) : result(detail::ok_tag{}, value) {}
 
 	// do not make explicit
-	constexpr result(const ok<T>& o)
-		requires (!std::is_void_v<T>)
+	template<typename _T = T>
+	constexpr result(const ok<_T>& o)
+		requires (!std::is_void_v<_T>) && std::is_convertible_v<_T, T>
 		: storage_{ .value { std::in_place_index<0>, o.value } } {}
-	constexpr result(const ok<T>& o)
-		requires (std::is_void_v<T>)
+	template<typename _T = T>
+	constexpr result(const ok<_T>& o)
+		requires (std::is_void_v<T>) && std::is_convertible_v<_T, T>
 		: storage_{ .value { std::in_place_index<0>, std::monostate{} } } {}
 
 	// do not make explicit
-	constexpr result(const err<E>& e)
-		requires (!std::is_void_v<T>)
+	template<typename _E = E>
+	constexpr result(const err<_E>& e)
+		requires (!std::is_void_v<E>) && std::is_convertible_v<_E, E>
 		: storage_{ .value { std::in_place_index<1>, e.error } } {}
-	constexpr result(const err<E>& e)
-		requires (std::is_void_v<T>)
+	template<typename _E = E>
+	constexpr result(const err<_E>& e)
+		requires (std::is_void_v<E>) && std::is_convertible_v<_E, E>
 		: storage_{ .value { std::in_place_index<1>, std::monostate{} } } {}
 
 	virtual ~result() = default;
@@ -240,11 +248,9 @@ public:
 	// e.g. result<string, strint> r; int i = r; 
 	// 
 	// disabled if(result) confusion when T is bool
-	// e.g. result<bool> res = ...; if(res) ...
+	// e.g. result<bool, ...> res = ...; if(res) { ... }
 	// use res.is_ok() or res.is_err() instead
-	// todo delete if T is bool to avoid confusion
-  	template <typename U = T> requires(NotBool<U>)
-	constexpr explicit operator bool() const noexcept {
+	constexpr explicit operator bool() const requires(NotBool<T>) {
 		return is_ok();
 	}
 

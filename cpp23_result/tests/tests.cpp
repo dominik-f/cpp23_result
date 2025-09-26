@@ -6,6 +6,19 @@
 #include <expected>
 
 
+//todo test:
+
+// only ok,err assignment/copy/move shall be possible - all other constructors shall be explicit
+// static_assert(std::is_convertible<ok, result>())
+// static_assert(std::is_convertible<err, result>())
+// static_assert( ! std::is_convertible<int, result>())
+
+template <typename T>
+concept has_operator_bool = requires(T&& t)
+{
+    { t.operator bool() } -> std::same_as<bool>;
+};
+
 class result_test : public ::testing::Test
 {
 private:
@@ -63,18 +76,25 @@ TEST_F(result_test, is_err_ref_qualifiers)
 }
 
 
-TEST_F(result_test, BoolOperatorOk) {
+TEST_F(result_test, OperatorBoolOk) {
   df::result<int, std::string> r(4);
   EXPECT_FALSE(r.is_err());
   EXPECT_TRUE(r.is_ok());
   EXPECT_TRUE(r);
 }
 
-TEST_F(result_test, BoolOperatorError) {
+TEST_F(result_test, OperatorBoolError) {
   auto r = df::result<int, std::string>::with_error<std::string>("asdf");
   EXPECT_TRUE(r.is_err());
   EXPECT_FALSE(r.is_ok());
   EXPECT_FALSE(r);
+}
+TEST_F(result_test, OperatorBoolAvailable) {
+  df::result<int, std::string> r1 = 10;
+  df::result<bool, std::string> r2 = false;
+
+  static_assert(has_operator_bool<decltype(r1)>, "operator bool() shall be available if value type is not bool");
+  static_assert(!has_operator_bool<decltype(r2)>, "operator bool() must not be available if value type is bool");
 }
 
 TEST_F(result_test, IsOk) {
@@ -111,18 +131,34 @@ TEST_F(result_test, VoidVariants) {
 
 TEST_F(result_test, result_from_ok) {
   df::result<int, std::string> r1_i = df::ok(10);
-  df::result<const int, std::string> r2_ci = df::ok<const int>(10);
+  df::result<const int, std::string> r2_ci = df::ok<const int>(10); // todo implicit conversion?
   df::result<void, std::string> r3_v = df::ok<void>();
   const df::result<int, std::string> cr4_i = df::ok(20);
-  const df::result<const int, std::string> cr5_ci = df::ok<const int>(20);
+  const df::result<const int, std::string> cr5_ci = df::ok<const int>(20); // todo implicit conversion?
   const df::result<void, std::string> cr6_v = df::ok<void>();
 
   EXPECT_EQ(r1_i.value(), 10);
   EXPECT_EQ(r2_ci.value(), 10);
   static_assert(std::is_void_v<typename decltype(r3_v)::value_type>);
-  EXPECT_EQ(cr4_i.value(), 10);
-  EXPECT_EQ(cr5_ci.value(), 10);
+  EXPECT_EQ(cr4_i.value(), 20);
+  EXPECT_EQ(cr5_ci.value(), 20);
   static_assert(std::is_void_v<typename decltype(cr6_v)::value_type>);
+}
+
+TEST_F(result_test, result_from_err) {
+  df::result<int, std::string> er1_s = df::err<std::string>("e30");
+  df::result<int, const std::string> er2_cs = df::err<std::string>("e40");
+  df::result<int, void> er3_v = df::err<void>();
+  const  df::result<int, std::string> er4_s = df::err<std::string>("e30");
+  const df::result<int, const std::string> er5_cs = df::err<std::string>("e40");
+  const  df::result<int, void> er6_v = df::err<void>();
+
+  EXPECT_EQ(er1_s.error(), "e30");
+  EXPECT_EQ(er2_cs.error(), "e40");
+  static_assert(std::is_void_v<typename decltype(er3_v)::error_type>);
+  EXPECT_EQ(er4_s.error(), "e30");
+  EXPECT_EQ(er5_cs.error(), "e40");
+  static_assert(std::is_void_v<typename decltype(er6_v)::error_type>);
 }
 
 auto print_nothing() { std::cout << "nothing\n"; return df::result<void, std::string>(); }
