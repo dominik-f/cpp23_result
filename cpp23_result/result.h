@@ -81,6 +81,34 @@ namespace detail {
 	constexpr bool is_result = false;
 	template <typename T, typename E>
 	constexpr bool is_result<result<T, E>> = true;
+
+	struct ok_tag : std::true_type {};
+	struct err_tag : std::false_type {};
+
+	
+	template<typename T, typename U>
+	struct copy_cv_ref {
+		using type = decltype(std::forward_like<T&&>(std::declval<U&&>()));
+	};
+	template<typename T, typename U>
+	using copy_cv_ref_t = copy_cv_ref<T&&, U&&>::type;
+	
+	template<typename Self, typename Func, typename ArgType>
+	struct invoke_result
+	{
+		using type = std::remove_cv_t<std::invoke_result_t<Func&&,
+			copy_cv_ref_t<Self&&, ArgType&&>>>;
+	};
+	template<typename Self, typename Func>
+	struct invoke_result<Self, Func, void>
+	{
+		using type = std::remove_cv_t<std::invoke_result_t<Func&&>>;
+	};
+	
+	template<typename Func, typename ArgType>
+	constexpr bool is_invocable_v = std::is_invocable_v<Func, ArgType>;
+	template<typename Func>
+	constexpr bool is_invocable_v<Func, void> = std::is_invocable_v<Func>;
 } // namespace detail
 
 template<typename T, typename E>
@@ -88,9 +116,6 @@ class result
 {
 	static constexpr int OK_STATE = 0;
 	static constexpr int ERR_STATE = 1;
-
-	struct ok_tag : std::true_type {};
-	struct err_tag : std::false_type {};
 
 	detail::result_storage<T, E> storage_;
 
@@ -101,14 +126,15 @@ class result
 	const state state_;*/
 
 	template <IsVoid _T = T>
-	constexpr explicit result(ok_tag) : storage_{ .value {std::in_place_index<0>, std::monostate{} } } {}
+	constexpr explicit result(detail::ok_tag) : storage_{ .value {std::in_place_index<0>, std::monostate{} } } {}
 	template <NotVoid _T = T>
-	constexpr explicit result(ok_tag, const _T& value) : storage_{ .value {std::in_place_index<0>, value} } {}
+	constexpr explicit result(detail::ok_tag, const _T& value) : storage_{ .value {std::in_place_index<0>, value} } {}
 
-  	template <typename _E = E, typename = std::enable_if<std::is_void_v<_E>>>
-	constexpr explicit result(err_tag) : storage_{ .value { std::in_place_index<1>, std::monostate{} } } {}
-  	template <typename _E = E, typename = std::enable_if<!std::is_void_v<_E>>>
-	constexpr explicit result(err_tag, const _E& error) : storage_{ .value { std::in_place_index<1>, error } } {}
+	template <typename _E = E> requires(std::is_void_v<_E>)
+	constexpr explicit result(detail::err_tag) : storage_{ .value { std::in_place_index<1>, std::monostate{} } } {}
+	template <typename _E = E> requires(!std::is_void_v<_E>)
+	constexpr explicit result(detail::err_tag, const _E& error) // requires(!std::is_void_v<E>)
+		: storage_{ .value { std::in_place_index<1>, error } } {}
 
 	// https://www.heise.de/blog/C-Core-Guidelines-Der-noexcept-Spezifier-und-Operator-4121657.html
 	// Mithilfe der Type-Traits-Bibliothek lässt sich zur Compilezeit prüfen,
@@ -121,9 +147,9 @@ public:
 	using error_type = E;
 
 	template <typename _T = T> requires(std::is_void_v<_T>)
-	constexpr result() : result(ok_tag{}) {}
+	constexpr result() : result(detail::ok_tag{}) {}
 	template <typename _T = T> requires(!std::is_void_v<_T>)
-	constexpr result(const _T& value) : result(ok_tag{}, value) {}
+	constexpr result(const _T& value) : result(detail::ok_tag{}, value) {}
 
 	virtual ~result() = default;
 
@@ -167,12 +193,12 @@ public:
 	template <IsVoid _E = E>
 	static result<T, E> with_error()
 	{
-		return result<T, E>(err_tag{});
+		return result<T, E>(detail::err_tag{});
 	}
 	template <NotVoid _E = E>
 	static result<T, E> with_error(const _E& error)
 	{
-		return result<T, E>(err_tag{}, error);
+		return result<T, E>(detail::err_tag{}, error);
 	}
 
 	[[nodiscard]] constexpr inline bool is_ok() const { return storage_.value.index() == OK_STATE; }
@@ -249,7 +275,7 @@ public:
 	/// @param func callable - must return a result
 	/// @return An object of result<U, E> (see TResultOut)
 	template<typename Func>
-		requires (!std::is_void_v<T>) && std::is_invocable_v<Func, T>
+		requires (!std::is_void_v<T>) && detail::is_invocable_v<Func, T>
 	constexpr auto and_then(this auto&& self, Func&& func)
 	{
 		using ValueType = decltype(std::forward<decltype(self)>(self).value());
@@ -265,11 +291,11 @@ public:
 		{
 			if constexpr (std::is_void_v<E>)
 			{
-				return TResultOut(err_tag{});
+				return TResultOut::with_error();
 			}
 			else
 			{
-				return TResultOut(err_tag{}, std::forward<decltype(self)>(self).error());
+				return TResultOut::with_error(std::forward<decltype(self)>(self).error());
 			}
 		}
 	}
@@ -280,7 +306,7 @@ public:
 	/// @param func callable - must return a result
 	/// @return An object of result<U, E> (see TResultOut)
 	template<typename Func>
-		requires std::is_void_v<T> && std::is_invocable_v<Func>
+		requires std::is_void_v<T> && detail::is_invocable_v<Func, T>
 	constexpr auto and_then(this auto&& self, Func&& func)
 	{
 		using TResultOut = std::remove_cv_t<std::invoke_result_t<Func>>;
@@ -295,11 +321,11 @@ public:
 		{
 			if constexpr (std::is_void_v<E>)
 			{
-				return TResultOut(err_tag{});
+				return TResultOut(detail::err_tag{});
 			}
 			else
 			{
-				return TResultOut(err_tag{}, std::forward<decltype(self)>(self).error());
+				return TResultOut(detail::err_tag{}, std::forward<decltype(self)>(self).error());
 			}
 		}
 	}
@@ -327,11 +353,11 @@ public:
 		{
 			if constexpr (std::is_void_v<T>)
 			{
-				return TResultOut(ok_tag{});
+				return TResultOut(detail::ok_tag{});
 			}
 			else
 			{
-				return TResultOut(ok_tag{}, std::forward<decltype(self)>(self).value());
+				return TResultOut(detail::ok_tag{}, std::forward<decltype(self)>(self).value());
 			}
 		}
 	}
@@ -357,11 +383,11 @@ public:
 		{
 			if constexpr (std::is_void_v<T>)
 			{
-				return TResultOut(ok_tag{});
+				return TResultOut(detail::ok_tag{});
 			}
 			else
 			{
-				return TResultOut(ok_tag{}, std::forward<decltype(self)>(self).value());
+				return TResultOut(detail::ok_tag{}, std::forward<decltype(self)>(self).value());
 			}
 		}
 	}
@@ -393,11 +419,11 @@ public:
 		{
 			if constexpr (std::is_void_v<E>)
 			{
-				return result<TRet, E>(err_tag{});
+				return result<TRet, E>(detail::err_tag{});
 			}
 			else
 			{
-				return result<TRet, E>(err_tag{}, error());
+				return result<TRet, E>(detail::err_tag{}, error());
 			}
 		}
 	}
@@ -424,11 +450,11 @@ public:
 		{
 			if constexpr (std::is_void_v<T>)
 			{
-				return TResultOut(ok_tag{});
+				return TResultOut(detail::ok_tag{});
 			}
 			else
 			{
-				return TResultOut(ok_tag{}, value());
+				return TResultOut(detail::ok_tag{}, value());
 			}
 		}
 	}

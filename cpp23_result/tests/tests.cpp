@@ -109,38 +109,61 @@ TEST_F(result_test, VoidVariants) {
   auto e4 = df::result<void, void>::with_error();
 }
 
-auto print_nothing() { std::cout << "\n"; return df::result<void, std::string>(); }
+auto print_nothing() { std::cout << "nothing\n"; return df::result<void, std::string>(); }
 auto print_int(const int i) { std::cout << i << "\n"; return df::result<int, std::string>(i); }
+auto print_int_cs(const int i) { std::cout << i << "\n"; return df::result<int, const std::string>(i); }
 auto print_int_v(const int i) { std::cout << i << "\n"; return df::result<int, void>(i); }
 template<typename T, typename E>
 auto log_error(const E& err) { std::cout << err << "\n"; return df::result<T, E>::with_error(err); }
 template<typename T>
 auto log_error_void() { std::cout << "error\n"; return df::result<T, void>::with_error(); }
+
 int add_ten(int v) { return v + 10; }
 
+
 TEST_F(result_test, and_then_or_else) {
-  df::result<int, std::string> r1_ = 10;
-  const df::result<int, std::string> r2_c = 20;
+  df::result<int, std::string> r1_i = 10;
+  df::result<const int, std::string> r2_ci = 10;
   df::result<void, std::string> r3_v;
+  const df::result<int, std::string> cr4_i = 20;
+  const df::result<const int, std::string> cr5_ci = 20;
+  const df::result<void, std::string> cr6_v;
   
-  auto r4_e = df::result<int, std::string>::with_error("e30");
-  const auto r5_ce = df::result<int, std::string>::with_error("e40");
-  auto r6_ve = df::result<int, void>::with_error();
+  auto er1_s = df::result<int, std::string>::with_error("e30");
+  auto er2_cs = df::result<int, const std::string>::with_error("e40");
+  auto er3_v = df::result<int, void>::with_error();
+  const auto er4_s = df::result<int, std::string>::with_error("e30");
+  const auto er5_cs = df::result<int, const std::string>::with_error("e40");
+  const auto er6_v = df::result<int, void>::with_error();
 
   // todo better tests
-  r1_.and_then(print_int);
-  r2_c.and_then(print_int);
+  r1_i.and_then(print_int);
+  r2_ci.and_then(print_int);
   r3_v.and_then(print_nothing);
-  r4_e.and_then(print_int);
-  r5_ce.and_then(print_int);
-  r6_ve.and_then(print_int_v);
+  cr4_i.and_then(print_int);
+  cr5_ci.and_then(print_int);
+  cr6_v.and_then(print_nothing);
 
-  r1_.or_else(log_error<int, std::string>);
-  r2_c.or_else(log_error<int, std::string>);
+  er1_s.and_then(print_int);
+  er2_cs.and_then(print_int_cs);
+  er3_v.and_then(print_int_v);
+  er4_s.and_then(print_int);
+  er5_cs.and_then(print_int_cs);
+  er6_v.and_then(print_int_v);
+
+  r1_i.or_else(log_error<int, std::string>);
+  r2_ci.or_else(log_error<const int, std::string>);
   r3_v.or_else(log_error<void, std::string>);
-  r4_e.or_else(log_error<int, std::string>);
-  r5_ce.or_else(log_error<int, std::string>);
-  r6_ve.or_else(log_error_void<int>);
+  cr4_i.or_else(log_error<int, std::string>);
+  cr5_ci.or_else(log_error<const int, std::string>);
+  cr6_v.or_else(log_error<void, std::string>);
+
+  er1_s.or_else(log_error<int, std::string>);
+  er2_cs.or_else(log_error<int, const std::string>);
+  er3_v.or_else(log_error_void<int>);
+  er4_s.or_else(log_error<int, std::string>);
+  er5_cs.or_else(log_error<int, const std::string>);
+  er6_v.or_else(log_error_void<int>);
 }
 
 TEST_F(result_test, transform) {
