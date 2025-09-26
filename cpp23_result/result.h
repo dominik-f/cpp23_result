@@ -278,8 +278,7 @@ public:
 		requires (!std::is_void_v<T>) && detail::is_invocable_v<Func, T>
 	constexpr auto and_then(this auto&& self, Func&& func)
 	{
-		using ValueType = decltype(std::forward<decltype(self)>(self).value());
-		using TResultOut = std::remove_cv_t<std::invoke_result_t<Func, ValueType>>;
+		using TResultOut = detail::invoke_result<decltype(self), Func, T>::type;
 		static_assert(detail::is_result<TResultOut>, "The return value of func(value()) must be a result");
 		static_assert(std::is_same_v<typename TResultOut::error_type, E>, "The return value of func(value()) must have the same error_type as this object");
 		
@@ -309,7 +308,7 @@ public:
 		requires std::is_void_v<T> && detail::is_invocable_v<Func, T>
 	constexpr auto and_then(this auto&& self, Func&& func)
 	{
-		using TResultOut = std::remove_cv_t<std::invoke_result_t<Func>>;
+		using TResultOut = detail::invoke_result<decltype(self), Func, T>::type;
     	static_assert(detail::is_result<TResultOut>, "The return value of func() must be a result");
 		static_assert(std::is_same_v<typename TResultOut::error_type, E>, "The return value of func() must have the same error_type as this object");
 
