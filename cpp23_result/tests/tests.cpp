@@ -6,7 +6,7 @@
 #include <expected>
 
 
-//todo test:
+//todo tests:
 
 // only ok,err assignment/copy/move shall be possible - all other constructors shall be explicit
 // static_assert(std::is_convertible<ok, result>())
@@ -30,17 +30,6 @@ public:
 	}
     ~result_test() {}
 };
-
-TEST_F(result_test, test1)
-{
-	std::cout << "Hello CMake." << std::endl;
-
-	df::result<int, std::string> r1{ 10 };
-	std::println("r1: {}", r1.value());
-
-	auto e1 = df::result<int, std::string>::with_error<std::string>("e1");
-	std::println("e1: {}", e1.error());
-}
 
 TEST_F(result_test, is_ok)
 {
@@ -161,14 +150,24 @@ TEST_F(result_test, result_from_err) {
   static_assert(std::is_void_v<typename decltype(er6_v)::error_type>);
 }
 
-auto print_nothing() { std::cout << "nothing\n"; return df::result<void, std::string>(); }
-auto print_int(const int i) { std::cout << i << "\n"; return df::result<int, std::string>(i); }
-auto print_int_cs(const int i) { std::cout << i << "\n"; return df::result<int, const std::string>(i); }
-auto print_int_v(const int i) { std::cout << i << "\n"; return df::result<int, void>(i); }
-template<typename T, typename E>
-auto log_error(const E& err) { std::cout << err << "\n"; return df::result<T, E>::with_error(err); }
+template<typename E>
+df::result<int, E> get_int(const std::string& arg) {
+  try {
+    return std::stoi(arg);
+  }
+  catch (...) {
+    if constexpr (std::is_void_v<E>)
+      return df::err<E>();
+    else
+      return df::err<E>(E{});
+  }
+}
 template<typename T>
-auto log_error_void() { std::cout << "error\n"; return df::result<T, void>::with_error(); }
+df::result<T, std::string> obfuscate_error_t(const std::string&) { return df::err<std::string>("ERR"); }
+template<typename E>
+df::result<std::string, E> obfuscate_error_e(const E&) { return df::err<std::string>("ERR"); }
+df::result<std::string, void> obfuscate_error_ev() { return df::err<void>(); }
+auto get_nothing() { return df::result<void, std::string>(); }
 
 int add_ten(int v) { return v + 10; }
 int get_ten_from_nothing() { return 10; }
@@ -189,48 +188,47 @@ auto errc_to_str(const std::errc& error_code)
 
 
 TEST_F(result_test, and_then_or_else) {
-  df::result<int, std::string> r1_i = 10;
-  df::result<const int, std::string> r2_ci = 10;
+  df::result<std::string, std::string> r1_i = "10";
+  df::result<const std::string, std::string> r2_ci = "20";
   df::result<void, std::string> r3_v;
-  const df::result<int, std::string> cr4_i = 20;
-  const df::result<const int, std::string> cr5_ci = 20;
+  const df::result<std::string, std::string> cr4_i = "40";
+  const df::result<const std::string, std::string> cr5_ci = "50";
   const df::result<void, std::string> cr6_v;
   
-  auto er1_s = df::result<int, std::string>::with_error("e30");
-  auto er2_cs = df::result<int, const std::string>::with_error("e40");
-  auto er3_v = df::result<int, void>::with_error();
-  const auto er4_s = df::result<int, std::string>::with_error("e30");
-  const auto er5_cs = df::result<int, const std::string>::with_error("e40");
-  const auto er6_v = df::result<int, void>::with_error();
+  auto er1_s = df::result<std::string, std::string>::with_error("e30");
+  auto er2_cs = df::result<std::string, const std::string>::with_error("e40");
+  auto er3_v = df::result<std::string, void>::with_error();
+  const auto er4_s = df::result<std::string, std::string>::with_error("e30");
+  const auto er5_cs = df::result<std::string, const std::string>::with_error("e40");
+  const auto er6_v = df::result<std::string, void>::with_error();
 
-  // todo better tests
-  r1_i.and_then(print_int);
-  r2_ci.and_then(print_int);
-  r3_v.and_then(print_nothing);
-  cr4_i.and_then(print_int);
-  cr5_ci.and_then(print_int);
-  cr6_v.and_then(print_nothing);
+  EXPECT_EQ(r1_i.and_then(get_int<std::string>).value(), 10);
+  EXPECT_EQ(r2_ci.and_then(get_int<std::string>).value(), 20);
+  static_assert(std::is_void_v<typename decltype(r3_v.and_then(get_nothing))::value_type>);
+  EXPECT_EQ(cr4_i.and_then(get_int<std::string>).value(), 40);
+  EXPECT_EQ(cr5_ci.and_then(get_int<std::string>).value(), 50);
+  static_assert(std::is_void_v<typename decltype(cr6_v.and_then(get_nothing))::value_type>);
 
-  er1_s.and_then(print_int);
-  er2_cs.and_then(print_int_cs);
-  er3_v.and_then(print_int_v);
-  er4_s.and_then(print_int);
-  er5_cs.and_then(print_int_cs);
-  er6_v.and_then(print_int_v);
+  EXPECT_EQ(er1_s.and_then(get_int<std::string>).error(), "e30");
+  EXPECT_EQ(er2_cs.and_then(get_int<const std::string>).error(), "e40");
+  static_assert(std::is_void_v<typename decltype(er3_v.and_then(get_int<void>))::error_type>);
+  EXPECT_EQ(er4_s.and_then(get_int<std::string>).error(), "e30");
+  EXPECT_EQ(er5_cs.and_then(get_int<const std::string>).error(), "e40");
+  static_assert(std::is_void_v<typename decltype(er6_v.and_then(get_int<void>))::error_type>);
 
-  r1_i.or_else(log_error<int, std::string>);
-  r2_ci.or_else(log_error<const int, std::string>);
-  r3_v.or_else(log_error<void, std::string>);
-  cr4_i.or_else(log_error<int, std::string>);
-  cr5_ci.or_else(log_error<const int, std::string>);
-  cr6_v.or_else(log_error<void, std::string>);
+  EXPECT_EQ(r1_i.or_else(obfuscate_error_t<std::string>).value(), "10");
+  EXPECT_EQ(r2_ci.or_else(obfuscate_error_t<const std::string>).value(), "20");
+  static_assert(std::is_void_v<typename decltype(r3_v.or_else(obfuscate_error_t<void>))::value_type>);
+  EXPECT_EQ(cr4_i.or_else(obfuscate_error_t<std::string>).value(), "40");
+  EXPECT_EQ(cr5_ci.or_else(obfuscate_error_t<const std::string>).value(), "50");
+  static_assert(std::is_void_v<typename decltype(cr6_v.or_else(obfuscate_error_t<void>))::value_type>);
 
-  er1_s.or_else(log_error<int, std::string>);
-  er2_cs.or_else(log_error<int, const std::string>);
-  er3_v.or_else(log_error_void<int>);
-  er4_s.or_else(log_error<int, std::string>);
-  er5_cs.or_else(log_error<int, const std::string>);
-  er6_v.or_else(log_error_void<int>);
+  EXPECT_EQ(er1_s.or_else(obfuscate_error_e<std::string>).error(), "ERR");
+  EXPECT_EQ(er2_cs.or_else(obfuscate_error_e<const std::string>).error(), "ERR");
+  static_assert(std::is_void_v<typename decltype(er3_v.or_else(obfuscate_error_ev))::error_type>);
+  EXPECT_EQ(er4_s.or_else(obfuscate_error_e<std::string>).error(), "ERR");
+  EXPECT_EQ(er5_cs.or_else(obfuscate_error_e<const std::string>).error(), "ERR");
+  static_assert(std::is_void_v<typename decltype(er6_v.or_else(obfuscate_error_ev))::error_type>);
 }
 
 TEST_F(result_test, transform) {

@@ -1,3 +1,5 @@
+// todo copyright header
+
 #ifndef DF_RESULT_H
 #define DF_RESULT_H
 
@@ -65,8 +67,7 @@ namespace detail
 //todo constexpr where possible
 //todo concepts where possible
 //todo add tests for T and E types, e.g. void, bool, non-copyable, non-moveable, non-default-constructible
-//todo struct Ok
-//todo struct Err
+//todo struct Ok,Err: support moves
 
 template<typename T>
 struct ok {
@@ -197,16 +198,10 @@ public:
 	ok_t, err_t
 	explicit result constructors for ok_t, err_t (usable for returns)
 
-	 operator bool
-	 has_value
 	 value
 	 value_or
 	 error
 	 error_or
-
-	  and_then
-	  or_else
-	  transform
 
 	  static with_ok
 	  static with_err
@@ -219,7 +214,6 @@ public:
 	  - default initialized (or not)
 	  - move/copy constructed (or not)
 
-	  delete bool operator if T is bool to stop confusion
 
 
 	  https://en.cppreference.com/w/cpp/utility/expected.html
@@ -305,6 +299,8 @@ public:
 	}
 
 	// todo check for is_contructible
+		//&& std::is_constructible_v<E, _Er&>
+
 
 	/// @brief If this.is_ok() returns the invocation result of the callable func. Otherwise returns the current error of this.
 	/// The callable func has to return a result.
