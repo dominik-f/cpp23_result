@@ -64,6 +64,22 @@ namespace detail
 //todo struct Ok
 //todo struct Err
 
+template<typename T>
+struct ok {
+	T value;
+	constexpr explicit ok(const T& object) : value(object) {}
+};
+template<>
+struct ok<void> {};
+
+template<typename E>
+struct err {
+	E error;
+	constexpr explicit err(const E& object) : error(object) {}
+};
+template<>
+struct err<void> {};
+
 
 
 template<typename T>
@@ -150,6 +166,22 @@ public:
 	constexpr result() : result(detail::ok_tag{}) {}
 	template <typename _T = T> requires(!std::is_void_v<_T>)
 	constexpr result(const _T& value) : result(detail::ok_tag{}, value) {}
+
+	// do not make explicit
+	constexpr result(const ok<T>& o)
+		requires (!std::is_void_v<T>)
+		: storage_{ .value { std::in_place_index<0>, o.value } } {}
+	constexpr result(const ok<T>& o)
+		requires (std::is_void_v<T>)
+		: storage_{ .value { std::in_place_index<0>, std::monostate{} } } {}
+
+	// do not make explicit
+	constexpr result(const err<E>& e)
+		requires (!std::is_void_v<T>)
+		: storage_{ .value { std::in_place_index<1>, e.error } } {}
+	constexpr result(const err<E>& e)
+		requires (std::is_void_v<T>)
+		: storage_{ .value { std::in_place_index<1>, std::monostate{} } } {}
 
 	virtual ~result() = default;
 
@@ -426,16 +458,7 @@ public:
 constexpr inline void Expect(const std::string& str) const
 
 
-
-and_then
-
-or_else
-
-
-
 */
-
-private:
 
 };
 

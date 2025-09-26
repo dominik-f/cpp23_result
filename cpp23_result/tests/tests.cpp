@@ -29,13 +29,13 @@ TEST_F(result_test, test1)
 	std::println("e1: {}", e1.error());
 }
 
-TEST_F(result_test, ok)
+TEST_F(result_test, is_ok)
 {
 	df::result<int, std::string> r = 10;
 	ASSERT_TRUE(r.is_ok());
 	EXPECT_EQ(r.value(), 10);
 }
-TEST_F(result_test, ok_ref_qualifiers)
+TEST_F(result_test, is_ok_ref_qualifiers)
 {
 	df::result<int, std::string> r = 10;
 	const df::result<int, std::string> cr = 10;
@@ -45,13 +45,13 @@ TEST_F(result_test, ok_ref_qualifiers)
 	EXPECT_EQ(cr.value(), 10);
 	EXPECT_EQ(std::move(cr.value()), 10);
 }
-TEST_F(result_test, err)
+TEST_F(result_test, is_err)
 {
 	auto r = df::result<int, int>::with_error(10);
 	ASSERT_TRUE(r.is_err());
 	EXPECT_EQ(r.error(), 10);
 }
-TEST_F(result_test, err_ref_qualifiers)
+TEST_F(result_test, is_err_ref_qualifiers)
 {
 	auto r = df::result<int, int>::with_error(10);
 	const auto cr = df::result<int, int>::with_error(10);
@@ -107,6 +107,22 @@ TEST_F(result_test, VoidVariants) {
   auto e2 = df::result<int, void>::with_error();
   auto e3 = df::result<void, int>::with_error(20);
   auto e4 = df::result<void, void>::with_error();
+}
+
+TEST_F(result_test, result_from_ok) {
+  df::result<int, std::string> r1_i = df::ok(10);
+  df::result<const int, std::string> r2_ci = df::ok<const int>(10);
+  df::result<void, std::string> r3_v = df::ok<void>();
+  const df::result<int, std::string> cr4_i = df::ok(20);
+  const df::result<const int, std::string> cr5_ci = df::ok<const int>(20);
+  const df::result<void, std::string> cr6_v = df::ok<void>();
+
+  EXPECT_EQ(r1_i.value(), 10);
+  EXPECT_EQ(r2_ci.value(), 10);
+  static_assert(std::is_void_v<typename decltype(r3_v)::value_type>);
+  EXPECT_EQ(cr4_i.value(), 10);
+  EXPECT_EQ(cr5_ci.value(), 10);
+  static_assert(std::is_void_v<typename decltype(cr6_v)::value_type>);
 }
 
 auto print_nothing() { std::cout << "nothing\n"; return df::result<void, std::string>(); }
